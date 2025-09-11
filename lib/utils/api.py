@@ -19,6 +19,7 @@ import sys
 import tempfile
 import threading
 import time
+import asyncio
 
 from lib.core.common import dataToStdout
 from lib.core.common import getSafeExString
@@ -76,6 +77,11 @@ class DataStore(object):
     tasks = dict()
     username = None
     password = None
+    completed_published = set()
+    bullmq_available = False
+    bullmq_queue_name = os.environ.get("BULLMQ_QUEUE", "sqlmap-events")
+    bullmq_job_name = os.environ.get("BULLMQ_JOB_NAME", "task.completed")
+    bullmq_redis_url = os.environ.get("BULLMQ_REDIS_URL", os.environ.get("REDIS_URL", "redis://localhost:6379"))
 
 # API objects
 class Database(object):
@@ -569,6 +575,31 @@ def scan_status(taskid):
     else:
         status = "terminated" if DataStore.tasks[taskid].engine_has_terminated() is True else "running"
 
+    # On first transition to terminated, publish a BullMQ event (best-effort)
+    if status == "terminated" and taskid not in DataStore.completed_published and DataStore.bullmq_available:
+        DataStore.completed_published.add(taskid)
+        try:
+            def _publish():
+                async def _run():
+                    logger.debug("(%s) BullMQ enqueue start" % taskid)
+                    queue = _BullQueue(DataStore.bullmq_queue_name, connection=DataStore.bullmq_redis_url)
+                    payload = {
+                        "taskid": taskid,
+                        "status": status,
+                        "returncode": DataStore.tasks[taskid].engine_get_returncode(),
+                        "timestamp": int(time.time())
+                    }
+                    try:
+                        job = await queue.add(DataStore.bullmq_job_name, payload)
+                        logger.debug("(%s) BullMQ job added id=%s name=%s queue=%s" % (taskid, getattr(job, 'id', None), DataStore.bullmq_job_name, DataStore.bullmq_queue_name))
+                    finally:
+                        await queue.close()
+                        logger.debug("(%s) BullMQ queue connection closed" % taskid)
+                asyncio.run(_run())
+            _publish()
+        except Exception as _ex:
+            logger.debug("(%s) BullMQ publish failed: %s" % (taskid, getSafeExString(_ex)))
+
     logger.debug("(%s) Retrieved scan status" % taskid)
     return jsonize({
         "success": True,
@@ -703,6 +734,16 @@ def server(host=RESTAPI_DEFAULT_ADDRESS, port=RESTAPI_DEFAULT_PORT, adapter=REST
     logger.info("Running REST-JSON API server at '%s:%d'.." % (host, port))
     logger.info("Admin (secret) token: %s" % DataStore.admin_token)
     logger.debug("IPC database: '%s'" % Database.filepath)
+
+    try:
+        # Optional BullMQ integration (Python port)
+        from bullmq import Queue as _BullQueue  # type: ignore
+        DataStore.bullmq_available = True
+        logger.debug("BullMQ detected (python). queue='%s', job='%s', redis='%s'"
+                 % (DataStore.bullmq_queue_name, DataStore.bullmq_job_name, DataStore.bullmq_redis_url))
+    except Exception:
+        DataStore.bullmq_available = False
+        logger.debug("BullMQ not installed; completion events disabled")
 
     # Initialize IPC database
     DataStore.current_db = Database()
