@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:latest
+    container_name: sqlmap-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  sqlmap-api:
+    build: .
+    container_name: sqlmap-api
+    ports:
+      - "8775:8775"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - redis
+
+  sqlmap-proxy:
+    build: node-api
+    container_name: sqlmap-proxy
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SQLMAP_API_URL=http://sqlmap-api:8775
+      - CORS_ORIGIN=*
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  redis_data:
