@@ -1,20 +1,6 @@
 version: '3.8'
 
 services:
-  redis:
-    image: redis:latest
-    container_name: sqlmap-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-
   sqlmap-api:
     build: .
     container_name: sqlmap-api
@@ -27,7 +13,7 @@ services:
     build: node-api
     container_name: sqlmap-proxy
     ports:
-      - "3000:3000"
+      - "8776:8776"
     environment:
       - PORT=3000
       - REDIS_HOST=redis
