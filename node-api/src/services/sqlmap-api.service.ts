@@ -1,4 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject } from '@nestjs/common';
+import { type ConfigType } from '@nestjs/config';
+import sqlmapConfig from '../config/sqlmap.config';
 import { ScanTaskDto, ScanResponseDto } from '../dto/scan-task.dto';
 
 @Injectable()
@@ -6,8 +8,11 @@ export class SqlmapApiService {
   private readonly logger = new Logger(SqlmapApiService.name);
   private readonly baseUrl: string;
 
-  constructor() {
-    this.baseUrl = process.env.SQLMAP_API_URL || 'http://localhost:8775';
+  constructor(
+    @Inject(sqlmapConfig.KEY)
+    private readonly cfg: ConfigType<typeof sqlmapConfig>,
+  ) {
+    this.baseUrl = cfg.apiUrl;
   }
 
   async createTask(): Promise<string> {
@@ -110,7 +115,7 @@ export class SqlmapApiService {
     }
   }
 
-  async getScanData(taskId: string): Promise<any> {
+  async getScanData(taskId: string): Promise<ScanResponseDto> {
     try {
       const response = await fetch(`${this.baseUrl}/scan/${taskId}/data`);
       const data = await response.json();

@@ -1,14 +1,23 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import {config} from 'dotenv';
+
+config();
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   
+  // Config
+  const configService = app.get(ConfigService);
+  const corsOrigin = configService.get<string>('app.corsOrigin', '*');
+  const port = configService.get<number>('app.port', 3000);
+
   // Enable CORS
   app.enableCors({
-    origin: process.env.CORS_ORIGIN || '*',
+    origin: corsOrigin,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
@@ -48,12 +57,14 @@ async function bootstrap() {
     `,
   });
 
-  const port = process.env.PORT || 3000;
   await app.listen(port);
   
   console.log(`🚀 SQLMap BullMQ Proxy is running on port ${port}`);
-  console.log(`📊 Redis connection: ${process.env.REDIS_HOST || 'localhost'}:${process.env.REDIS_PORT || '6379'}`);
-  console.log(`🔗 SQLMap API: ${process.env.SQLMAP_API_URL || 'http://localhost:8775'}`);
+  const redisHost = configService.get<string>('redis.host', 'localhost');
+  const redisPort = configService.get<number>('redis.port', 6379);
+  const sqlmapApi = configService.get<string>('sqlmap.apiUrl', 'http://localhost:8775');
+  console.log(`📊 Redis connection: ${redisHost}:${redisPort}`);
+  console.log(`🔗 SQLMap API: ${sqlmapApi}`);
   console.log(`📚 API Documentation: http://localhost:${port}/api/docs`);
 }
 bootstrap();

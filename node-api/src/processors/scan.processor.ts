@@ -2,6 +2,7 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { SqlmapApiService } from '../services/sqlmap-api.service';
+import { BULLMQ_QUEUE_NAME } from '../config/bullmq.config';
 import { ScanTaskDto } from '../dto/scan-task.dto';
 
 export interface ScanJobData {
@@ -15,7 +16,7 @@ export interface ScanJobData {
 }
 
 @Injectable()
-@Processor('scan-queue')
+@Processor(BULLMQ_QUEUE_NAME || 'sqlmap')
 export class ScanProcessor extends WorkerHost {
   private readonly logger = new Logger(ScanProcessor.name);
 

@@ -22,8 +22,6 @@ services:
       - "8775:8775"
     volumes:
       - ./data:/app/data
-    depends_on:
-      - redis
 
   sqlmap-proxy:
     build: node-api

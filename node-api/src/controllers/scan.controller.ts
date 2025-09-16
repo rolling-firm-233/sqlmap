@@ -3,7 +3,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { ScanTaskDto, ScanResponseDto } from '../dto/scan-task.dto';
-import { SqlmapApiService } from '../services/sqlmap-api.service';
+import { BULLMQ_QUEUE_NAME } from '../config/bullmq.config';
 
 @ApiTags('scan')
 @Controller('scan')
@@ -11,8 +11,7 @@ export class ScanController {
   private readonly logger = new Logger(ScanController.name);
 
   constructor(
-    @InjectQueue('scan-queue') private scanQueue: Queue,
-    private readonly sqlmapApiService: SqlmapApiService,
+    @InjectQueue(BULLMQ_QUEUE_NAME) private scanQueue: Queue,
   ) {}
 
   @Post('start')
